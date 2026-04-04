@@ -22,12 +22,3 @@ An end-to-end Machine Learning application that predicts insurance premium categ
 
 ---
 
-## 📁 Project Structure
-```text
-.
-├── main.py              # FastAPI Inference Server
-├── app.py               # Streamlit Frontend
-├── model.pkl            # Trained ML Model (Random Forest/XGBoost)
-├── config.py            # City Tier & Constants configuration
-├── notebook.ipynb       # EDA and Model Training Script
-└── requirements.txt     # Project Dependencies
