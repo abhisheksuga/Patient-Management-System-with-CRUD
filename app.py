@@ -1,70 +1,31 @@
 from fastapi import FastAPI
-from pydantic import BaseModel , Field , computed_field
-from typing import Literal , Annotated
 import pickle
 import pandas as pd
-from config import tier_1_cities , tier_2_cities
 from fastapi.responses import JSONResponse 
-
-with open('model.pkl','rb') as f :
-    model = pickle.load(f)
+from schema.user_input import UserInput
+from schema.results_reponse import ResultResponse
+from model.predict import predict_output , MODEL_VERSION
 
 
 app =FastAPI()
 
-class UserInput(BaseModel):
-    age : Annotated[float,Field(...,gt=0,lt=120,description='Age of the user')]
-    weight : Annotated[float,Field(...,gt=0,description='Weight of the user')]
-    height : Annotated[float,Field(...,gt=0,lt=2.1 ,description='Height of the user')]
-    income_lpa :Annotated[float,Field(...,gt=0,description='Annual salary of the user in lpa')]
-    smoker : Annotated[bool,Field(...,description='Is user a smoker')]
-    city : Annotated[str,Field(...,description='City of the user')]
-    occupation :Annotated[Literal['retired','freelancer','student','government_job','business_owner','unemployed','private_job'],Field(...,description='Occupation of the user')]
-
-    @computed_field
-    @property
-    def bmi(self) -> float :
-        return self.weight/(self.height **2)
-    
-    @computed_field
-    @property
-    def lifestyle_risk(self) -> str :
-        if self.smoker and self.bmi > 30:
-            return "high"
-        elif self.smoker or self.bmi > 27:
-         return "medium"
-        else:
-         return "low"
 
 
-    @computed_field
-    @property
-    def age_group(self) -> str :
-        if self.age < 25:
-            return "young"
-        elif self.age < 45:
-            return "adult"
-        elif self.age < 60:
-            return "middle_aged"
-        return "senior"
-    
+@app.get('/')
+def home():
+    return{'message':'Welcome to the Insurance Premium Prediction System'}
 
-    @computed_field
-    @property
-    def city_tier(self) -> int :
-        if self.city in tier_1_cities:
-            return 1
-        elif self.city in tier_2_cities:
-            return 2
-        else:
-            return 3  
-        
+#endpoint for the services like ELB / Kub
+@app.get('/health')
+def health_check():
+    return{'status':'Ok' ,'version':MODEL_VERSION}
 
-@app.post('/predict')
+
+@app.post('/predict',response_model=ResultResponse)
 def predict_premium(data : UserInput):
 
 
-    input_df = pd.DataFrame([{
+    input_df = {
         'bmi' : data.bmi,
         'age_group' : data.age_group ,
         'lifestyle_risk' : data.lifestyle_risk ,
@@ -72,12 +33,11 @@ def predict_premium(data : UserInput):
         'income_lpa' :data.income_lpa ,
         'occupation' : data.occupation
 
-    }])
-    prediction = model.predict(input_df)[0]
-    content = {
-        "response": {
-            "predicted_category": str(prediction)
-        }
     }
+    try:
 
-    return JSONResponse(status_code=200,content=content)
+        prediction = predict_output(input_df)
+        
+        return JSONResponse(status_code=200,content={'predicted_category':prediction})
+    except Exception as e :
+        return JSONResponse(status_code=500 ,content=str(e))
